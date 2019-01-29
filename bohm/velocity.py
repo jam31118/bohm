@@ -14,6 +14,43 @@ from .state import Gradient_State_Function_In_Polar_Box, Gradient_State_Function
 value_instead_zero = 1e-50
 
 
+from tdse.finite_difference import it_seems_increasing_equidistanced_arr
+
+def eval_v_p_arr(x_p_arr, psi_arr, x_arr, check_x_arr=True):
+    for arr_arg in [x_p_arr, psi_arr, x_arr]: assert isinstance(arr_arg, np.ndarray)
+    if check_x_arr: assert it_seems_increasing_equidistanced_arr(x_arr)
+
+    _v_p_arr = np.empty_like(x_p_arr, dtype=float)
+    
+    _delta_x = x_arr[1] - x_arr[0]
+    
+    _out_of_x_range_mask = (x_p_arr < x_arr[0]) | (x_p_arr >= x_arr[-1])
+    
+    _x_p_in_range_arr = x_p_arr[~_out_of_x_range_mask]
+    
+    _i_p_0_arr = np.empty_like(_x_p_in_range_arr, dtype=int)
+    _i_p_1_arr = np.empty_like(_x_p_in_range_arr, dtype=int)
+    _i_p_0_arr[:] = (_x_p_in_range_arr - x_arr[0]) // _delta_x
+    _i_p_1_arr[:] = _i_p_0_arr + 1
+    
+    _coef_p_1_arr = (_x_p_in_range_arr - x_arr[_i_p_0_arr]) / _delta_x
+    _coef_p_0_arr = 1 - _coef_p_1_arr
+    
+    _psi_p_in_range_arr = _coef_p_0_arr * psi_arr[_i_p_0_arr] + _coef_p_1_arr * psi_arr[_i_p_1_arr]
+    if np.any(_psi_p_in_range_arr == 0): raise ValueError("Zero psi! Singularity happened")
+    
+    _dpsi_p_in_range_arr = (-1.0/_delta_x) * psi_arr[_i_p_0_arr] + (1.0/_delta_x) * psi_arr[_i_p_1_arr]
+    
+    _v_p_arr[~_out_of_x_range_mask] = (_dpsi_p_in_range_arr / _psi_p_in_range_arr).imag
+    
+    _v_p_arr[_out_of_x_range_mask] = 0.0
+    
+    return _v_p_arr
+
+
+
+
+
 class Velocity_Field(object):
     def __init__(self, state_function):
         assert State_Function in type(state_function).mro()
