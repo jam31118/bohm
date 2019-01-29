@@ -14,26 +14,30 @@ from .state import Gradient_State_Function_In_Polar_Box, Gradient_State_Function
 value_instead_zero = 1e-50
 
 
+
 from tdse.finite_difference import it_seems_increasing_equidistanced_arr
 from numbers import Integral
+
 def eval_v_p_arr(x_p_arr, psi_arr, x_arr, num_of_stencils, check_x_arr=True):
+
+    # Check function arguments
     for arr_arg in [x_p_arr, psi_arr, x_arr]: assert isinstance(arr_arg, np.ndarray)
     if check_x_arr: assert it_seems_increasing_equidistanced_arr(x_arr)
-    
     assert isinstance(num_of_stencils, Integral) and (num_of_stencils > 1) and (num_of_stencils <= x_arr.size)
-    _num_of_stencils = num_of_stencils
 
+
+    # Define variables
+    _num_of_stencils = num_of_stencils
     _v_p_arr = np.empty_like(x_p_arr, dtype=float)
-    
     _delta_x = x_arr[1] - x_arr[0]
-    
+
+
+    # Sort out particles whose positions are in range 
     _out_of_x_range_mask = (x_p_arr < x_arr[0]) | (x_p_arr >= x_arr[-1])
-    
     _x_p_in_range_arr = x_p_arr[~_out_of_x_range_mask]
     
-#    _i_p_0_arr = np.empty_like(_x_p_in_range_arr, dtype=int)
-#    _i_p_1_arr = np.empty_like(_x_p_in_range_arr, dtype=int)
-#    _i_p_2_arr = np.empty_like(_x_p_in_range_arr, dtype=int)
+    
+    # Determine indices for each particle's positions
     _i_p_arr_arr = np.empty((_num_of_stencils, _x_p_in_range_arr.size), dtype=int)
     
     _num_of_points_on_left = (_num_of_stencils // 2) - 1
@@ -41,9 +45,6 @@ def eval_v_p_arr(x_p_arr, psi_arr, x_arr, num_of_stencils, check_x_arr=True):
     _num_of_points_on_right = _num_of_stencils - _num_of_points_on_left - 1
     assert _num_of_stencils == (_num_of_points_on_left + 1 + _num_of_points_on_right)
     
-#    print("_index_of_nearest_left_point: {}".format(_index_of_nearest_left_point))
-#    print("_num_of_points_on_left: {} / _num_of_points_on_right: {}".format(_num_of_points_on_left, _num_of_points_on_right))
-
     # [NOTE][OPTIMIZE] use `numpy.where()` instead of mask
 
     _i_p_arr_arr[_index_of_nearest_left_point,:] = (_x_p_in_range_arr - x_arr[0]) // _delta_x
@@ -62,33 +63,19 @@ def eval_v_p_arr(x_p_arr, psi_arr, x_arr, num_of_stencils, check_x_arr=True):
         if _stencil_index != _index_of_nearest_left_point:
             _index_offset = _stencil_index - _index_of_nearest_left_point
             _i_p_arr[:] = _i_p_arr_arr[_index_of_nearest_left_point,:] + _index_offset
-#        print("_stencil_index: '{}':  _i_p_arr: {}".format(_stencil_index, _i_p_arr))
 
+    ## Shift if the any stencil is placed outside of range `[x_arr[0], x_arr[-1])`
     for _stencil_index in range(_num_of_stencils):
         _i_p_arr = _i_p_arr_arr[_stencil_index,:]  # aliasing
-        # Shift if the any stencil is placed outside of range `[x_arr[0], x_arr[-1])`
-#        print("_shift_offset_to_left: {}".format(_shift_offset_to_left))
-#        print("_shift_offset_to_right: {}".format(_shift_offset_to_right))
         _i_p_arr[_mask_for_shift_to_left] += _shift_offset_to_left
         _i_p_arr[_mask_for_shift_to_right] += _shift_offset_to_right
 
-#    _i_p_0_arr[:] = (_x_p_in_range_arr - x_arr[0]) // _delta_x
-#    _i_p_1_arr[:] = _i_p_0_arr + 1
-#    _i_p_2_arr[:] = _i_p_0_arr + 2
-
-#    if _num_of_stencils == 2:
-#        _i_p_arr_list = [_i_p_0_arr, _i_p_1_arr]
-#    elif _num_of_stencils == 3:
-#        _i_p_arr_list = [_i_p_0_arr, _i_p_1_arr, _i_p_2_arr]
-#        mask_for_shift = _i_p_0_arr == x_arr.size - 2
-#        shift_amount = -1
-#        for _i_p_arr in _i_p_arr_list:
-#            _i_p_arr[mask_for_shift] += shift_amount
-#    else: raise Exception
     assert len(_i_p_arr_arr) == _num_of_stencils
-   
-#    print(_i_p_arr_arr)
-    
+
+
+    # Evaluate coefficients for psi and dpsidx values at given x_p positions
+
+    ## Contruct power matrix, which will be inverted to get coefficients
     power_matrix_arr = np.empty((_x_p_in_range_arr.size, _num_of_stencils, _num_of_stencils), dtype=float)
     power_matrix_arr[:,0,:] = 1.0
     distance_to_each_stencil_arr = power_matrix_arr[:,1,:]  # the first order corresponds to liear distance
@@ -97,26 +84,37 @@ def eval_v_p_arr(x_p_arr, psi_arr, x_arr, num_of_stencils, check_x_arr=True):
     for _stencil_index in range(2,_num_of_stencils):
         power_matrix_arr[:,_stencil_index,:] = power_matrix_arr[:,_stencil_index-1,:] * distance_to_each_stencil_arr
 
-#    print("power_matrix_arr: ", power_matrix_arr)
+    ## Construct an array of b vectors, in the target equations Ac=b, where c is the column vector of coefficients
+    ## .. and Solve linear system for coefficients
 
+    ### solve for coefficients for psi values
     b_vec_arr = np.zeros((_x_p_in_range_arr.size, _num_of_stencils), dtype=float)
     b_vec_arr[:,0] = 1.0
     _coef_psi_p_arr_arr = np.linalg.solve(power_matrix_arr, b_vec_arr)
 
+    ### solve for coefficients for dpsidx values
     b_vec_arr[:,0] = 0.0
     b_vec_arr[:,1] = 1.0
     _coef_dpsidx_p_arr_arr = np.linalg.solve(power_matrix_arr, b_vec_arr)
 
+    
+    # Evaluate psi and dpsidx values
+
+    ## Initalization
     _psi_p_in_range_arr = np.zeros_like(_x_p_in_range_arr, dtype=complex)
     _dpsi_p_in_range_arr = np.zeros_like(_x_p_in_range_arr, dtype=complex)
+
+    ## Evaluation
     for _stencil_index in range(_num_of_stencils):
         _psi_p_in_range_arr += _coef_psi_p_arr_arr[:,_stencil_index] * psi_arr[_i_p_arr_arr[_stencil_index]]
         _dpsi_p_in_range_arr += _coef_dpsidx_p_arr_arr[:,_stencil_index] * psi_arr[_i_p_arr_arr[_stencil_index]]
 
+    ## Check singularity
     if np.any(_psi_p_in_range_arr == 0): raise ValueError("Zero psi! Singularity happened")
     
+
+    # Evaluate velocities from psi and dpsidx values
     _v_p_arr[~_out_of_x_range_mask] = (_dpsi_p_in_range_arr / _psi_p_in_range_arr).imag
-    
     _v_p_arr[_out_of_x_range_mask] = 0.0
     
     return _v_p_arr
