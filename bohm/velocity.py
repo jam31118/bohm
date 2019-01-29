@@ -20,6 +20,8 @@ def eval_v_p_arr(x_p_arr, psi_arr, x_arr, check_x_arr=True):
     for arr_arg in [x_p_arr, psi_arr, x_arr]: assert isinstance(arr_arg, np.ndarray)
     if check_x_arr: assert it_seems_increasing_equidistanced_arr(x_arr)
 
+    _num_of_stencils = 2
+
     _v_p_arr = np.empty_like(x_p_arr, dtype=float)
     
     _delta_x = x_arr[1] - x_arr[0]
@@ -32,14 +34,41 @@ def eval_v_p_arr(x_p_arr, psi_arr, x_arr, check_x_arr=True):
     _i_p_1_arr = np.empty_like(_x_p_in_range_arr, dtype=int)
     _i_p_0_arr[:] = (_x_p_in_range_arr - x_arr[0]) // _delta_x
     _i_p_1_arr[:] = _i_p_0_arr + 1
+
+    _i_p_arr_list = [_i_p_0_arr, _i_p_1_arr]
+    assert len(_i_p_arr_list) == _num_of_stencils
     
-    _coef_p_1_arr = (_x_p_in_range_arr - x_arr[_i_p_0_arr]) / _delta_x
-    _coef_p_0_arr = 1 - _coef_p_1_arr
+    power_matrix_arr = np.empty((_x_p_in_range_arr.size, _num_of_stencils, _num_of_stencils), dtype=float)
+    power_matrix_arr[:,0,:] = 1.0
+    distance_to_each_stencil_arr = power_matrix_arr[:,1,:]  # the first order corresponds to liear distance
+    for _i_p_arr_index, _i_p_arr in enumerate(_i_p_arr_list):
+        distance_to_each_stencil_arr[:,_i_p_arr_index] = x_arr[_i_p_arr] - _x_p_in_range_arr
+    for _stencil_index in range(2,_num_of_stencils):
+        power_matrix_arr[:,_stencil_index,:] = power_matrix_arr[:,_stencil_index-1,:] * distance_to_each_stencil_arr
+
+    b_vec_arr = np.zeros((_x_p_in_range_arr.size, _num_of_stencils), dtype=float)
+
+    b_vec_arr[:,0] = 1.0
+    _coef_psi_p_arr_arr = np.linalg.solve(power_matrix_arr, b_vec_arr)
+
+    b_vec_arr[:,0] = 0.0
+    b_vec_arr[:,1] = 1.0
+    _coef_dpsidx_p_arr_arr = np.linalg.solve(power_matrix_arr, b_vec_arr)
+
+#    _coef_p_1_arr = (_x_p_in_range_arr - x_arr[_i_p_0_arr]) / _delta_x
+#    _coef_p_0_arr = 1 - _coef_p_1_arr
     
-    _psi_p_in_range_arr = _coef_p_0_arr * psi_arr[_i_p_0_arr] + _coef_p_1_arr * psi_arr[_i_p_1_arr]
+    _psi_p_in_range_arr = np.zeros_like(_x_p_in_range_arr, dtype=complex)
+    _dpsi_p_in_range_arr = np.zeros_like(_x_p_in_range_arr, dtype=complex)
+#    for _coef_psi_p_arr, _coef_dpsidx_p_arr, _i_p_arr in zip(_coef_psi_p_arr_arr, _coef_dpsidx_p_arr_arr, _i_p_arr_list):
+    for _stencil_index in range(_num_of_stencils):
+        _psi_p_in_range_arr += _coef_psi_p_arr_arr[:,_stencil_index] * psi_arr[_i_p_arr_list[_stencil_index]]
+        _dpsi_p_in_range_arr += _coef_dpsidx_p_arr_arr[:,_stencil_index] * psi_arr[_i_p_arr_list[_stencil_index]]
+
+#    _psi_p_in_range_arr = _coef_p_0_arr * psi_arr[_i_p_0_arr] + _coef_p_1_arr * psi_arr[_i_p_1_arr]
     if np.any(_psi_p_in_range_arr == 0): raise ValueError("Zero psi! Singularity happened")
     
-    _dpsi_p_in_range_arr = (-1.0/_delta_x) * psi_arr[_i_p_0_arr] + (1.0/_delta_x) * psi_arr[_i_p_1_arr]
+#    _dpsi_p_in_range_arr = (-1.0/_delta_x) * psi_arr[_i_p_0_arr] + (1.0/_delta_x) * psi_arr[_i_p_1_arr]
     
     _v_p_arr[~_out_of_x_range_mask] = (_dpsi_p_in_range_arr / _psi_p_in_range_arr).imag
     
