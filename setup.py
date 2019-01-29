@@ -42,7 +42,7 @@ setup(
     ],
     keywords='physics',
     packages=find_packages(),
-    install_requires=['numpy','matplotlib','scipy','ntype','tdse','qprop'],
+    install_requires=['numpy','matplotlib','scipy','ntype','tdse','qprop','mpi4py'],
     long_description=long_description,
     license = 'MIT'
 )

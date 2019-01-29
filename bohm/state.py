@@ -654,8 +654,12 @@ class Numerical_State_Function_In_Spherical_Box_Qprop(Numerical_State_Function, 
         return self.get_value_from_indices_vec(*partial_indices)
 
 
+try:
+    from mpi4py import MPI
+except ImportError:
+    from sys import stderr
+    print("Couldn't import `mpi4py` module", file=stderr)
 
-from mpi4py import MPI
 class Numerical_State_Function_In_Spherical_Box_Qprop_MPI(Numerical_State_Function_In_Spherical_Box_Qprop):
     def __init__(self, *args, mpi_file=None, **kwargs):
         super().__init__(*args, **kwargs)
