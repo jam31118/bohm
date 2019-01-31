@@ -263,10 +263,10 @@ def eval_v_p_arr_for_sph_harm_basis(r_p_arr, psi_in_sph_harm_basis_arr, rho_arr,
     _v_phi *= 1.0 / (_rho_p_arr * np.sin(_theta_p_arr))
 
     # v_theta
-    _numerator_theta = np.dot(_l_arr+1, _phi_p_arr * _sph_harm_arr)
+    _numerator_theta = np.dot(_l_arr+1, _psi_p_arr * _sph_harm_arr)
     _numerator_theta *= - np.cos(_theta_p_arr)
     _coef_lm_arr = np.sqrt((2*_l_arr+1)/(2*_l_arr+3) * (_l_arr+1+_m_arr) * (_l_arr+1-_m_arr))
-    _numerator_theta += np.dot(_coef_lm_arr, _phi_p_arr * _sph_harm_l_plus_1_arr)
+    _numerator_theta += np.dot(_coef_lm_arr, _psi_p_arr * _sph_harm_l_plus_1_arr)
     _v_theta = (_numerator_theta / _rho_mul_total_psi).imag
     _v_theta *= 1.0 / (_rho_p_arr * np.sin(_theta_p_arr))
     
