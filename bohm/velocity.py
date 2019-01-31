@@ -153,6 +153,137 @@ def eval_v_p_arr(x_p_arr, psi_arr, x_arr, num_of_stencils, check_x_arr=True, x_p
 
 
 
+import numpy as np
+from numbers import Integral
+
+# from qprop.grid import Grid
+
+def eval_v_p_arr_for_sph_harm_basis(r_p_arr, psi_in_sph_harm_basis_arr, rho_arr, lm_arr, num_of_stencils,
+                                    check_rho_arr=True, rho_p_lim=None):
+    '''
+    evaluate velocity vectors for each particles
+    from the state function, expanded in spherical harmonics basis
+    
+    The number of spheirical harmonics that has been used 
+    in the expansion of state function, `N_lm`,
+    and the number of particles, `N_p`,
+    are inferred from the argument arrays' shape.
+    
+    # Function Argument
+    `r_p_arr` : numpy.ndarray with shape (N_lm, N_p)
+        - `N_lm`: the size of spherical harmonics basis
+        - `N_p`: the number of Bohmian particles
+    `psi_in_sph_harm_basis_arr`: numpy.ndarray with shape (N_lm,N_rho)
+        - `N_rho`: the number of radial coordiates, which are equidistanced.
+    `rho_arr`: numpy.ndarray with shape (N_rho,)
+    `lm_arr`: numpy.ndarray with shape (N_lm, 2)
+        : e.g. [[0,0],[1,-1],[1,0],[1,1],[2,-2],...,[N_lm-1,N_lm-1]]
+        : e.g. [[0,0],[1,0], [2,0],[3,0],...,[N_lm-1,0]]
+        - It is also possible:
+        : e.g. [[0,-1],[1,-1], [2,-1],[3,-1],...,[N_lm-1,-1]]
+    `num_of_stencils`: int >= 2
+        : the number of stencils used for estimating psi and its derivative
+        : .. in finite difference scheme.
+    `check_rho_arr`: bool, with default: True
+        : if True, check whether the given `rho_arr` is an
+        : strctly increasing and equdistanced.
+    `rho_p_lim`: tuple of floats, with length 2
+        : in a form: (rho_p_min, rho_p_max), which defines 
+        : .. the limits of rho values of particles
+    '''
+    
+    # Check function arguments
+    for arr_arg in [r_p_arr, psi_in_sph_harm_basis_arr, rho_arr]: assert isinstance(arr_arg, np.ndarray)
+    if check_rho_arr: assert it_seems_increasing_equidistanced_arr(rho_arr)
+    assert isinstance(num_of_stencils, Integral) and (num_of_stencils > 1) and (num_of_stencils <= rho_arr.size)
+    _rho_p_lim = (rho_arr[0], rho_arr[-1])
+    if rho_p_lim is not None:
+        assert hasattr(rho_p_lim, '__getitem__') and (len(rho_p_lim) == 2)
+        _rho_p_lim = rho_p_lim
+    assert (r_p_arr.ndim == 2) and (psi_in_sph_harm_basis_arr.ndim == 2) and (rho_arr.ndim == 1) and (lm_arr.ndim == 2)
+    assert (lm_arr.shape[0] == psi_in_sph_harm_basis_arr.shape[0])
+    assert r_p_arr.shape[1] == 3
+    assert psi_in_sph_harm_basis_arr.shape[1] == rho_arr.size
+    
+    # Set variables to be used
+    _rho_p_min, _rho_p_max = _rho_p_lim
+    _r_p_arr, _psi_arr, _rho_arr = r_p_arr, psi_in_sph_harm_basis_arr, rho_arr
+    _num_of_stencils = num_of_stencils
+    _rho_p_arr, _theta_p_arr, _phi_p_arr = _r_p_arr[:,0], _r_p_arr[:,1], _r_p_arr[:,2]
+    _lm_arr = lm_arr
+    
+    # Sort out particles whose positions are out-of-range 
+    _out_of_rho_range_mask = (_rho_p_arr < _rho_p_min) | (_rho_p_arr >= _rho_p_max)
+    _rho_p_in_range_arr = _rho_p_arr[~_out_of_rho_range_mask]
+
+    # Define size quantities
+    _N_p = _rho_p_in_range_arr.size
+    _N_lm = _psi_arr.shape[0]
+
+
+    # Evaluate spherical harmonics
+
+    # [NOTE] `lm_arr` is an array-type for 1D list of 2-tuples: (l,m)
+    _l_arr, _m_arr = _lm_arr[:,0], _lm_arr[:,1]
+    
+    from scipy.special import sph_harm
+
+    _sph_harm_arr_shape = (_N_lm, _N_p)
+    _sph_harm_arr = np.empty(_sph_harm_arr_shape, dtype=complex)
+    _sph_harm_l_plus_1_arr = np.empty(_sph_harm_arr_shape, dtype=complex)
+
+    for _lm_index, (_l, _m) in enumerate(_lm_arr):
+        _sph_harm_arr[_lm_index,:] = sph_harm(_m, _l, _phi_p_arr, _theta_p_arr)
+        _sph_harm_l_plus_1_arr[_lm_index,:] = sph_harm(_m, _l+1, _phi_p_arr, _theta_p_arr)
+
+        
+    # Evaluate $\psi$ and $\partial_{\rho}\psi$ at particle positions
+
+    from bohm.velocity import eval_psi_and_dpsidx_arr
+
+    _psi_p_arr, _dpsidr_p_arr = eval_psi_and_dpsidx_arr(
+        _rho_p_arr, _psi_arr, _rho_arr, _num_of_stencils, x_p_lim=_rho_p_lim)
+
+    # aliasing
+    # rho_p_arr, theta_p_arr, phi_p_arr = r_p_arr[:,0], r_p_arr[:,1], r_p_arr[:,2]
+
+    # evaluate denumerator in velocity expression
+    _rho_mul_total_psi = np.sum(_psi_p_arr * _sph_harm_arr, axis=0)
+#     print("_psi_p_arr: ",_psi_p_arr)
+#     print("_sph_harm_arr: ",_sph_harm_arr)
+#     print("_rho_mul_total_psi: ",_rho_mul_total_psi)
+    
+    # v_rho
+    _numerator_rho = np.sum(_dpsidr_p_arr * _sph_harm_arr, axis=0)
+    _v_rho = (_numerator_rho / _rho_mul_total_psi).imag
+
+    # v_phi
+    _numerator_phi = np.dot(_m_arr, _psi_p_arr * _sph_harm_arr)
+    _v_phi = (_numerator_phi / _rho_mul_total_psi).real
+    _v_phi *= 1.0 / (_rho_p_arr * np.sin(_theta_p_arr))
+
+    # v_theta
+    _numerator_theta = np.dot(_l_arr+1, _phi_p_arr * _sph_harm_arr)
+    _numerator_theta *= - np.cos(_theta_p_arr)
+    _coef_lm_arr = np.sqrt((2*_l_arr+1)/(2*_l_arr+3) * (_l_arr+1+_m_arr) * (_l_arr+1-_m_arr))
+    _numerator_theta += np.dot(_coef_lm_arr, _phi_p_arr * _sph_harm_l_plus_1_arr)
+    _v_theta = (_numerator_theta / _rho_mul_total_psi).imag
+    _v_theta *= 1.0 / (_rho_p_arr * np.sin(_theta_p_arr))
+    
+    
+    # pack
+    _v_p_arr = np.empty_like(_r_p_arr, dtype=_r_p_arr.dtype)
+    _v_p_arr[~_out_of_rho_range_mask,0] = _v_rho
+    _v_p_arr[~_out_of_rho_range_mask,1] = _v_theta
+    _v_p_arr[~_out_of_rho_range_mask,2] = _v_phi
+    _v_p_arr[_out_of_rho_range_mask,:] = 0.0
+    
+    return _v_p_arr
+
+
+
+
+
 
 class Velocity_Field(object):
     def __init__(self, state_function):
