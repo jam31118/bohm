@@ -209,15 +209,14 @@ def eval_v_p_arr_for_sph_harm_basis(r_p_arr, psi_in_sph_harm_basis_arr, rho_arr,
     _rho_p_min, _rho_p_max = _rho_p_lim
     _r_p_arr, _psi_arr, _rho_arr = r_p_arr, psi_in_sph_harm_basis_arr, rho_arr
     _num_of_stencils = num_of_stencils
-    _rho_p_arr, _theta_p_arr, _phi_p_arr = _r_p_arr[:,0], _r_p_arr[:,1], _r_p_arr[:,2]
     _lm_arr = lm_arr
     
     # Sort out particles whose positions are out-of-range 
-    _out_of_rho_range_mask = (_rho_p_arr < _rho_p_min) | (_rho_p_arr >= _rho_p_max)
-    _rho_p_in_range_arr = _rho_p_arr[~_out_of_rho_range_mask]
+    _out_of_rho_range_mask = (_r_p_arr[:,0] < _rho_p_min) | (_r_p_arr[:,0] >= _rho_p_max)
+    _rho_p_arr, _theta_p_arr, _phi_p_arr = ( _r_p_arr[~_out_of_rho_range_mask, i] for i in range(_r_p_arr.shape[-1]) )
 
     # Define size quantities
-    _N_p = _rho_p_in_range_arr.size
+    _N_p = (~_out_of_rho_range_mask).sum()
     _N_lm = _psi_arr.shape[0]
 
 
@@ -244,14 +243,8 @@ def eval_v_p_arr_for_sph_harm_basis(r_p_arr, psi_in_sph_harm_basis_arr, rho_arr,
     _psi_p_arr, _dpsidr_p_arr = eval_psi_and_dpsidx_arr(
         _rho_p_arr, _psi_arr, _rho_arr, _num_of_stencils, x_p_lim=_rho_p_lim)
 
-    # aliasing
-    # rho_p_arr, theta_p_arr, phi_p_arr = r_p_arr[:,0], r_p_arr[:,1], r_p_arr[:,2]
-
     # evaluate denumerator in velocity expression
     _rho_mul_total_psi = np.sum(_psi_p_arr * _sph_harm_arr, axis=0)
-#     print("_psi_p_arr: ",_psi_p_arr)
-#     print("_sph_harm_arr: ",_sph_harm_arr)
-#     print("_rho_mul_total_psi: ",_rho_mul_total_psi)
     
     # v_rho
     _numerator_rho = np.sum(_dpsidr_p_arr * _sph_harm_arr, axis=0)
