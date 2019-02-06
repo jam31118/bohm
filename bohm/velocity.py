@@ -18,15 +18,20 @@ value_instead_zero = 1e-50
 from tdse.finite_difference import it_seems_increasing_equidistanced_arr
 from numbers import Integral, Real
 
-def eval_psi_and_dpsidx_arr(x_p_arr, psi_arr, x_arr, num_of_stencils, x_p_lim=None):
-
+def eval_psi_and_dpsidx_arr(
+        x_p_arr, psi_arr, x_arr, num_of_stencils, x_p_lim=None):
+    
+    # Check function argument(s)
+    ## Check `x_p_lim`
     if x_p_lim is not None:
         assert hasattr(x_p_lim, '__getitem__') and (len(x_p_lim) == 2)
         _x_p_min, _x_p_max = x_p_lim
         assert isinstance(_x_p_min, Real) and isinstance(_x_p_max, Real)
         _out_of_x_range_mask = (x_p_arr < _x_p_min) | (x_p_arr >= _x_p_max)
         if np.any(_out_of_x_range_mask):
-            raise ValueError("The given `x_p_arr` has some out-of-range ({} <= x_p < {}) elements".format(*x_p_lim))
+            err_mesg = "The given `x_p_arr`"\
+                    " has some out-of-range ({} <= x_p < {}) elements"
+            raise ValueError(err_mesg.format(*x_p_lim))
 
     # Define variables
     _x_p_in_range_arr = x_p_arr
@@ -34,7 +39,10 @@ def eval_psi_and_dpsidx_arr(x_p_arr, psi_arr, x_arr, num_of_stencils, x_p_lim=No
     _delta_x = x_arr[1] - x_arr[0]
     
     # Determine indices for each particle's positions
-    _i_p_arr_arr = np.empty((_num_of_stencils, _x_p_in_range_arr.size), dtype=int)
+    _i_p_arr_arr = np.empty(
+            (_num_of_stencils, _x_p_in_range_arr.size), 
+            dtype=int
+    )
     
     _num_of_points_on_left = (_num_of_stencils // 2) - 1
     _index_of_nearest_left_point = (_num_of_stencils // 2) - 1
@@ -47,9 +55,11 @@ def eval_psi_and_dpsidx_arr(x_p_arr, psi_arr, x_arr, num_of_stencils, x_p_lim=No
     _mask_for_shift_to_right = _i_p_arr_arr[_index_of_nearest_left_point,:] < _num_of_points_on_left
     _shift_offset_to_right = _num_of_points_on_left - _i_p_arr_arr[_index_of_nearest_left_point,_mask_for_shift_to_right]
     assert np.all(_shift_offset_to_right > 0)
+
     _mask_for_shift_to_left = _i_p_arr_arr[_index_of_nearest_left_point,:] > (x_arr.size - _num_of_points_on_right - 1)
     _shift_offset_to_left = (x_arr.size - _num_of_points_on_right - 1) - _i_p_arr_arr[_index_of_nearest_left_point,_mask_for_shift_to_left]
     assert np.all(_shift_offset_to_left < 0)
+
     assert not np.any(_mask_for_shift_to_left & _mask_for_shift_to_right)
 
     for _stencil_index in range(_num_of_stencils):
