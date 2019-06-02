@@ -259,6 +259,7 @@ def eval_v_p_arr_for_sph_harm_basis(r_p_arr, psi_in_sph_harm_basis_arr, rho_arr,
     # v_rho
     _numerator_rho = np.sum(_dpsidr_p_arr * _sph_harm_arr, axis=0)
     _v_rho = (_numerator_rho / _rho_mul_total_psi).imag
+    _v_rho *= 1.0 / _rho_p_arr
 
     # v_phi
     _numerator_phi = np.dot(_m_arr, _psi_p_arr * _sph_harm_arr)
