@@ -1,0 +1,13 @@
+dist/
+build/
+*.egg-info/
+test/
+__pycache__/
+obs
+
+.ipynb_checkpoints/
+*.png
+*.jpeg
+*.jpg
+*.mp4
+*.gif
