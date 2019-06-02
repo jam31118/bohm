@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 dist/
 build/
 *.egg-info/
@@ -12,6 +11,5 @@ obs
 *.jpg
 *.mp4
 *.gif
-=======
+
 bohm.egg-info/
->>>>>>> 8c8fc1ad3c72b6636e4afe1d26d45190a5ffb4f5
