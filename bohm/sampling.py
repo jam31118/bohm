@@ -20,7 +20,7 @@ def to_linear_cdf(x, f):
 
 def quantile(x, f, q, return_cdf=False):
     
-    assert np.all((0 <= q) & (q < 1.0))
+    assert np.all((0 <= q) & (q <= 1.0))
 
     _cdf = to_linear_cdf(x, f)
     
@@ -29,7 +29,7 @@ def quantile(x, f, q, return_cdf=False):
         _q0 = q[_i]
         if _q0 == 1.0: _xq = 1.0
         else:
-            _ind = np.where((_cdf - _q0) > 0)[0][0] - 1
+            _ind = np.where(_cdf > _q0)[0][0] - 1
             _p = (_q0 - _cdf[_ind]) / (_cdf[_ind+1] - _cdf[_ind])
             _xq = _p * x[_ind+1] + (1 - _p) * x[_ind]
         _xq_arr[_i] = _xq
